@@ -8,6 +8,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using System.Drawing.Imaging;
+using System.Windows.Forms.DataVisualization.Charting;
 
 namespace kNN
 {
@@ -28,9 +29,10 @@ namespace kNN
 
     public static class Program
     {
+        static int k = 10;
         static string fontLocation = @"C:\Users\Emil\Desktop\Diplomski\Fonts";
         static Bitmap imageTest = new Bitmap(@"C:\Users\Emil\Desktop\Diplomski\Fonts\Inconsolata\Inconsolata_0BL.png");
-        static Bitmap imageTest2 = new Bitmap(@"C:\Users\Emil\Desktop\Diplomski\Fonts\Inconsolata\Inconsolata_0.png");
+        static Bitmap imageTest2 = new Bitmap(@"C:\Users\Emil\Desktop\Diplomski\ANN\example\ex4.jpg");
 
         static string[] glyphs = new string[] { "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
             "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F", "G",
@@ -41,6 +43,8 @@ namespace kNN
         //static Dictionary<string, List<string>> GlyphGroupsAA = new Dictionary<string, List<string>>();
         //static Dictionary<string, List<string>> GlyphGroupsBL = new Dictionary<string, List<string>>();
         //static Dictionary<string, List<string>> GlyphGroupsNH = new Dictionary<string, List<string>>();
+
+        static Dictionary<string, double> UltimateResult = new Dictionary<string, double>();
 
 
         static void Main(string[] args)
@@ -54,13 +58,15 @@ namespace kNN
             OrganisekNNGroups(directoryEntries, "_BL_.png", "BL.png", kNNGroups);
             OrganisekNNGroups(directoryEntries, "_NH_.png", "NH.png", kNNGroups);
 
-            var testList = kNNGroups["a"];
+            var testList = kNNGroups["e"];
             testList.Shuffle();
 
             // List of Lists
             var split = SplitList(testList, 10);
 
-            FindOptimalK(split);
+            //FindOptimalK(split);
+
+            ProcessImg(imageTest2);
 
             /*
             foreach (var glyph in glyphs)
@@ -72,6 +78,119 @@ namespace kNN
             }
             */
             Console.ReadLine();
+        }
+
+        private static void FindkNN(int k, Dictionary<string, List<kNNEntity>> kNNGroups, Bitmap imageTest, string charValue)
+        {
+            var trainList = kNNGroups[charValue];
+            var imageArray = BitmapToIntArray(imageTest);
+            Dictionary<int, double> kDict = new Dictionary<int, double>();
+            List<double> distanceList = new List<double>();
+
+            foreach (var trainElement in trainList)
+            {
+                var distance = (double)kNNDistance(imageArray, trainElement.array);
+                distanceList.Add(distance);
+            }
+
+            for (int n = 0; n < k; n++)
+            {
+                var min = distanceList.Min();
+                var index = distanceList.IndexOf(min);
+                //Console.WriteLine("min: " + min + " index: " + index);
+                kDict.Add(index, min);
+                distanceList[index] = double.MaxValue;
+            }
+
+            var sum = kDict.Sum(x => x.Value);
+            //Console.WriteLine(testFontValue);
+            //Console.WriteLine(sum);
+            kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(Math.Abs(x.Value - sum), 3));
+            sum = kDict.Sum(x => x.Value);
+            //Console.WriteLine(sum);
+            if (sum != 0)
+                kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(x.Value / sum, 3));
+
+            Dictionary<string, double> resultDict = new Dictionary<string, double>();
+
+            foreach (var element in kDict)
+            {
+                var currentFont = trainList[element.Key].font;
+                var currentValue = element.Value;
+
+                if (resultDict.ContainsKey(currentFont))
+                    resultDict[currentFont] += currentValue;
+                else
+                    resultDict.Add(currentFont, currentValue); 
+            }
+
+            
+            foreach (var result in resultDict)
+            {
+                if (!UltimateResult.ContainsKey(result.Key))
+                    UltimateResult.Add(result.Key, result.Value);
+                else
+                    UltimateResult[result.Key] += result.Value;
+                //Console.WriteLine(result.Key + ": " + result.Value);
+            }
+            //Console.WriteLine("");
+            //Console.ReadLine();
+        }
+
+        private static void ProcessImg(Bitmap image)
+        {
+            tessnet2.Tesseract ocr = new tessnet2.Tesseract();
+
+            ocr.SetVariable("tessedit_char_whitelist", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
+
+            ocr.Init(@"C:\Users\Emil\Documents\Visual Studio 2015\Projects\NeuralNetwork\NeuralNetwork\bin\Debug\tessdata", "eng", false);
+
+            List<tessnet2.Word> result = ocr.DoOCR(image, Rectangle.Empty);
+            string resultString = "";
+
+            Dictionary<string, List<Rectangle>> CharLocations = new Dictionary<string, List<Rectangle>>();
+            int charCount = 0;
+
+            foreach (tessnet2.Word word in result)
+            {
+                //Console.WriteLine(word.ToString());
+                resultString += word.Text + " ";
+
+                foreach (tessnet2.Character character in word.CharList)
+                {
+                    charCount++;
+                    Rectangle charPosition = FindCharLocation(character.Left, character.Right, character.Top, character.Bottom);
+
+                    //Console.WriteLine("{0} : {1}", character.Value.ToString(), charPosition.ToString());
+
+                    List<Rectangle> allCharBounds;
+                    if (!CharLocations.TryGetValue(character.Value.ToString(), out allCharBounds))
+                    {
+                        allCharBounds = new List<Rectangle>();
+                        CharLocations.Add(character.Value.ToString(), allCharBounds);
+                    }
+                    allCharBounds.Add(charPosition);
+
+                    //G.DrawRectangle(Pens.Blue, charPosition);
+                }
+            }
+
+            foreach (var charPositions in CharLocations)
+            {
+                foreach (var charLocation in charPositions.Value)
+                {
+                    using (Bitmap croppedImage = ScaleImage(image.Clone(charLocation, image.PixelFormat), 30, 30))
+                    {
+                        //Console.WriteLine("Char: " + charPositions.Key);
+                        FindkNN(k, kNNGroups, croppedImage, charPositions.Key);
+                    }
+                }
+            }
+
+            foreach (var res in UltimateResult)
+            {
+                Console.WriteLine(res.Key + ": " + res.Value);
+            }
         }
 
         private static void FindOptimalK(List<List<kNNEntity>> split)
@@ -118,7 +237,7 @@ namespace kNN
                         {
                             var min = distanceListCopy.Min();
                             var index = distanceListCopy.IndexOf(min);
-                            Console.WriteLine("min: " + min + " index: " + index);
+                            //Console.WriteLine("min: " + min + " index: " + index);
                             kDict.Add(index, min);
                             distanceListCopy[index] = double.MaxValue;
                         }
@@ -141,6 +260,7 @@ namespace kNN
                                 correct += 1;//element.Value;
                             }
                         }
+                        correct = Math.Round(correct / k, 3); 
                         //Console.WriteLine(correct);
                         finalK.Add(correct);
                     }
@@ -149,16 +269,63 @@ namespace kNN
                 }
             }
 
+            double[] totalSum = new double[30];
+
             foreach (var element in finalResult)
             {
-                Console.WriteLine("--------- new subject ----------");
+                //Console.WriteLine("--------- new subject ----------");
                 for (int i = 0; i<element.Count(); i++)
                 {
-                    Console.Write(i + 1 + ": " + element[i] + " | ");
+                    totalSum[i] += element[i];
+                    //Console.Write(i + 1 + ": " + element[i] + " | ");
                 }
-                Console.WriteLine("");
+                //Console.WriteLine("");
             }
-            Console.ReadLine();
+
+            for (int i = 0; i < totalSum.Count(); i++)
+            {
+                totalSum[i] = totalSum[i] / finalResult.Count();
+                //Console.Write(i + 1 + ": " + element[i] + " | ");
+            }
+            MakeAGraph(totalSum);
+            //Console.ReadLine();
+        }
+
+        private static void MakeAGraph(double[] listElements)
+        {
+            List<int> xValues = new List<int>();
+            for (int x = 0; x<listElements.Count(); x++)
+            {
+                xValues.Add(x + 1);
+            }
+
+            // create the chart
+            var chart = new Chart();
+            chart.Size = new Size(1000, 400);
+
+            var chartArea = new ChartArea();
+            chartArea.AxisX.Interval = 1;
+            chartArea.AxisY.Interval = 0.05;
+            chartArea.AxisX.MajorGrid.LineColor = Color.LightGray;
+            chartArea.AxisY.MajorGrid.LineColor = Color.LightGray;
+            chartArea.AxisX.LabelStyle.Font = new Font("Consolas", 8);
+            chartArea.AxisY.LabelStyle.Font = new Font("Consolas", 8);
+            chart.ChartAreas.Add(chartArea);
+
+            var series = new Series();
+            series.Name = "Series1";
+            series.ChartType = SeriesChartType.FastLine;
+            series.XValueType = ChartValueType.Double;
+            chart.Series.Add(series);
+
+            // bind the datapoints
+            chart.Series["Series1"].Points.DataBindXY(xValues, listElements);
+
+            // draw!
+            chart.Invalidate();
+
+            // write out a file
+            chart.SaveImage(@"D:\chart.png", ChartImageFormat.Png);
         }
 
         public static List<List<kNNEntity>> SplitList(List<kNNEntity> locations, int nSize = 10)
@@ -282,6 +449,36 @@ namespace kNN
             }
             Console.ReadLine();
             */
+        }
+
+        public static Bitmap ScaleImage(Bitmap image, int maxWidth, int maxHeight)
+        {
+            var ratioX = (double)maxWidth / image.Width;
+            var ratioY = (double)maxHeight / image.Height;
+            var ratio = Math.Min(ratioX, ratioY);
+
+            var newWidth = image.Width * ratio;
+            var newHeight = image.Height * ratio;
+
+            newWidth = newWidth + newWidth * 0.1;
+            newHeight = newHeight + newHeight * 0.1;
+
+            var newImage = new Bitmap(maxWidth, maxHeight);
+
+            using (var graphics = Graphics.FromImage(newImage))
+            {
+                graphics.Clear(Color.White);
+                graphics.DrawImage(image, -1, -3, (int)newWidth, (int)newHeight);
+            }
+
+            return newImage;
+        }
+
+        static Rectangle FindCharLocation(int left, int right, int top, int bottom)
+        {
+            int xSize = right - left;
+            int ySize = bottom - top;
+            return new Rectangle(left, top, xSize, ySize);
         }
 
     }
