@@ -9,10 +9,13 @@ using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using System.Drawing.Imaging;
 using System.Windows.Forms.DataVisualization.Charting;
+using System.Diagnostics;
+using System.Xml.Serialization;
+using System.Xml.Linq;
+using Newtonsoft.Json;
 
 namespace kNN
 {
-
     public class kNNEntity
     {
         public int[] array;
@@ -23,16 +26,15 @@ namespace kNN
             this.array = array;
             this.font = font;
         }
-
-
     }
 
     public static class Program
     {
-        static int k = 10;
-        static string fontLocation = @"C:\Users\Emil\Desktop\Diplomski\Fonts";
-        static Bitmap imageTest = new Bitmap(@"C:\Users\Emil\Desktop\Diplomski\Fonts\Inconsolata\Inconsolata_0BL.png");
-        static Bitmap imageTest2 = new Bitmap(@"C:\Users\Emil\Desktop\Diplomski\ANN\example\ex4.jpg");
+        static int k = 17;
+        static int scale = 30;
+        static string fontLocation = @"D:\Faks\Diplomski\Fonts";
+        static Bitmap imageTest = new Bitmap(@"D:\Faks\Diplomski\test\Lora1.jpg");
+        static string testFolder = @"D:\Faks\Diplomski\test";
 
         static string[] glyphs = new string[] { "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
             "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F", "G",
@@ -53,20 +55,30 @@ namespace kNN
             List<string> directoryEntries = Directory.GetDirectories(fontLocation).ToList();
 
             // Group up same glyphs of different font in GlyphGroups dictionary
-            OrganisekNNGroups(directoryEntries, "_.png", ".png", kNNGroups);
-            OrganisekNNGroups(directoryEntries, "_AA_.png", "AA.png", kNNGroups);
-            OrganisekNNGroups(directoryEntries, "_BL_.png", "BL.png", kNNGroups);
-            OrganisekNNGroups(directoryEntries, "_NH_.png", "NH.png", kNNGroups);
+            //OrganisekNNGroups(directoryEntries, "_.png", ".png", kNNGroups);
+            //OrganisekNNGroups(directoryEntries, "_AA_.png", "AA.png", kNNGroups);
+            //OrganisekNNGroups(directoryEntries, "_BL_.png", "BL.png", kNNGroups);
+            //OrganisekNNGroups(directoryEntries, "_NH_.png", "NH.png", kNNGroups);
 
+            //File.WriteAllText(@"D:\Faks\Diplomski\kNN\TrainElements_dim100.json", JsonConvert.SerializeObject(kNNGroups));
+
+            kNNGroups = JsonConvert.DeserializeObject<Dictionary<string, List<kNNEntity>>>
+                (File.ReadAllText(@"D:\Faks\Diplomski\kNN\TrainElements_dim30.json"));
+
+            /*
+            // FOR OPTIMAL k
             var testList = kNNGroups["e"];
             testList.Shuffle();
 
             // List of Lists
             var split = SplitList(testList, 10);
 
-            //FindOptimalK(split);
+            FindOptimalK(split);
+            */
 
-            ProcessImg(imageTest2);
+            //ProcessImg(imageTest);
+
+            ProcessTest(testFolder);
 
             /*
             foreach (var glyph in glyphs)
@@ -80,16 +92,38 @@ namespace kNN
             Console.ReadLine();
         }
 
+        private static void ProcessTest(string testFolder)
+        {
+            foreach (var testImg in Directory.GetFiles(testFolder, "*.jpg"))
+            {
+                using (Bitmap image = new Bitmap(testImg))
+                {
+                    Console.WriteLine("\nImage: {0}", testImg);
+                    Console.WriteLine("Size: {0}", image.Size);
+                    Console.WriteLine("-------------------------------");
+                    ProcessImg(image);
+                    Console.WriteLine("");
+                }
+            }
+        }
+
         private static void FindkNN(int k, Dictionary<string, List<kNNEntity>> kNNGroups, Bitmap imageTest, string charValue)
         {
             var trainList = kNNGroups[charValue];
             var imageArray = BitmapToIntArray(imageTest);
             Dictionary<int, double> kDict = new Dictionary<int, double>();
             List<double> distanceList = new List<double>();
+            //Stopwatch stw = new Stopwatch();
+            //stw.Reset();
 
             foreach (var trainElement in trainList)
             {
-                var distance = (double)kNNDistance(imageArray, trainElement.array);
+                //stw.Start();
+                var distance = kNNDistance(imageArray, trainElement.array);
+                //stw.Stop();
+
+                //Console.WriteLine("Time: {0}", stw.Elapsed);
+                //stw.Reset();
                 distanceList.Add(distance);
             }
 
@@ -102,11 +136,15 @@ namespace kNN
                 distanceList[index] = double.MaxValue;
             }
 
-            var sum = kDict.Sum(x => x.Value);
+            // kDict predstavlja rječnik sa indexom vrijednosti koja se koristi kasnije za pronalaženje imena fonta
+            // i udaljenosti dobivene iz kNN algoritma
+            var sum = kDict.OrderBy(x => x.Value).Take(k).Sum(x => x.Value);
+            //kDict.Sum(x => x.Value);
+
             //Console.WriteLine(testFontValue);
             //Console.WriteLine(sum);
             kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(Math.Abs(x.Value - sum), 3));
-            sum = kDict.Sum(x => x.Value);
+            sum = kDict.OrderBy(x => x.Value).Take(k).Sum(x => x.Value);
             //Console.WriteLine(sum);
             if (sum != 0)
                 kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(x.Value / sum, 3));
@@ -124,7 +162,6 @@ namespace kNN
                     resultDict.Add(currentFont, currentValue); 
             }
 
-            
             foreach (var result in resultDict)
             {
                 if (!UltimateResult.ContainsKey(result.Key))
@@ -133,6 +170,7 @@ namespace kNN
                     UltimateResult[result.Key] += result.Value;
                 //Console.WriteLine(result.Key + ": " + result.Value);
             }
+
             //Console.WriteLine("");
             //Console.ReadLine();
         }
@@ -143,7 +181,7 @@ namespace kNN
 
             ocr.SetVariable("tessedit_char_whitelist", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
 
-            ocr.Init(@"C:\Users\Emil\Documents\Visual Studio 2015\Projects\NeuralNetwork\NeuralNetwork\bin\Debug\tessdata", "eng", false);
+            ocr.Init(@"C:\Users\Emil-PC\Documents\Visual Studio 2015\Projects\kNN\kNN\bin\Debug\tessdata", "eng", false);
 
             List<tessnet2.Word> result = ocr.DoOCR(image, Rectangle.Empty);
             string resultString = "";
@@ -179,7 +217,7 @@ namespace kNN
             {
                 foreach (var charLocation in charPositions.Value)
                 {
-                    using (Bitmap croppedImage = ScaleImage(image.Clone(charLocation, image.PixelFormat), 30, 30))
+                    using (Bitmap croppedImage = ScaleImage(image.Clone(charLocation, image.PixelFormat), scale, scale))
                     {
                         //Console.WriteLine("Char: " + charPositions.Key);
                         FindkNN(k, kNNGroups, croppedImage, charPositions.Key);
@@ -187,10 +225,12 @@ namespace kNN
                 }
             }
 
-            foreach (var res in UltimateResult)
+            foreach (var res in UltimateResult.OrderByDescending(key => key.Value))
             {
-                Console.WriteLine(res.Key + ": " + res.Value);
+                Console.WriteLine(res.Key + ": " + Math.Round(res.Value / CharLocations.Count(), 3) * 100); //  
             }
+
+            UltimateResult.Clear();
         }
 
         private static void FindOptimalK(List<List<kNNEntity>> split)
@@ -213,7 +253,7 @@ namespace kNN
                     {
                         if (testElement != trainElement)
                         {
-                            var distance = (double)kNNDistance(testElement.array, trainElement.array);
+                            var distance = kNNDistance(testElement.array, trainElement.array);
                             distanceList.Add(distance);
                         }
                     }
@@ -262,6 +302,10 @@ namespace kNN
                         }
                         correct = Math.Round(correct / k, 3); 
                         //Console.WriteLine(correct);
+
+                        //if (train[kDict.FirstOrDefault(x => x.Value == kDict.Values.Max()).Key].font == testFontValue)
+                        //    correct = 1;
+
                         finalK.Add(correct);
                     }
                     //Console.ReadLine();
@@ -310,6 +354,8 @@ namespace kNN
             chartArea.AxisY.MajorGrid.LineColor = Color.LightGray;
             chartArea.AxisX.LabelStyle.Font = new Font("Consolas", 8);
             chartArea.AxisY.LabelStyle.Font = new Font("Consolas", 8);
+            chartArea.AxisX.Title = "Parametar k";
+            chartArea.AxisY.Title = "Točnost";
             chart.ChartAreas.Add(chartArea);
 
             var series = new Series();
@@ -325,7 +371,7 @@ namespace kNN
             chart.Invalidate();
 
             // write out a file
-            chart.SaveImage(@"D:\chart.png", ChartImageFormat.Png);
+            chart.SaveImage(@"D:\Faks\Diplomski\Rad\chart.png", ChartImageFormat.Png);
         }
 
         public static List<List<kNNEntity>> SplitList(List<kNNEntity> locations, int nSize = 10)
@@ -355,7 +401,7 @@ namespace kNN
             }
         }
 
-        private static int kNNDistance(int[] testArr, int[] refArr)
+        private static double kNNDistance(int[] testArr, int[] refArr)
         {
             var resultArr = testArr.Select((x, index) => 
                 Math.Abs(x - refArr[index]))
@@ -410,6 +456,7 @@ namespace kNN
 
         private static void OrganisekNNGroups(List<string> fontDirectories, String pathUpper, String pathLower, Dictionary<string, List<kNNEntity>> dict)
         {
+            
             foreach (var directoryEntry in fontDirectories)
             {
                 foreach (string glyph in glyphs)
@@ -429,6 +476,7 @@ namespace kNN
                     string fontName = fInfo.Directory.Name;
 
                     Bitmap image = new Bitmap(glyphImage);
+                    //image = ScaleImage(image, 30, 30);
                     int[] array = BitmapToIntArray(image);
 
                     // Put all of the same glyphs of different fonts into GlyphGroups dictionary
@@ -440,7 +488,8 @@ namespace kNN
                     }
                     sameLetterGlyphs.Add(new kNNEntity(array, fontName));
                 }
-            }
+            }          
+
             /*
             Console.WriteLine("Number of key - value pairs: " + dict.Count());
             foreach (var pair in dict)
