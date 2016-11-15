@@ -65,20 +65,20 @@ namespace kNN
             kNNGroups = JsonConvert.DeserializeObject<Dictionary<string, List<kNNEntity>>>
                 (File.ReadAllText(@"D:\Faks\Diplomski\kNN\TrainElements_dim30.json"));
 
-            /*
+            
             // FOR OPTIMAL k
-            var testList = kNNGroups["e"];
+            var testList = kNNGroups["k"];
             testList.Shuffle();
 
             // List of Lists
             var split = SplitList(testList, 10);
 
             FindOptimalK(split);
-            */
+            
 
             //ProcessImg(imageTest);
 
-            ProcessTest(testFolder);
+            //ProcessTest(testFolder);
 
             /*
             foreach (var glyph in glyphs)
@@ -89,7 +89,7 @@ namespace kNN
                 }
             }
             */
-            Console.ReadLine();
+            //Console.ReadLine();
         }
 
         private static void ProcessTest(string testFolder)
@@ -283,33 +283,67 @@ namespace kNN
                         }
 
                         var testFontValue = testElement.font;
-                        var sum = kDict.Sum(x => x.Value);
-                        //Console.WriteLine(testFontValue);
-                        //Console.WriteLine(sum);
-                        kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(Math.Abs(x.Value - sum), 3) );
-                        sum = kDict.Sum(x => x.Value);
-                        //Console.WriteLine(sum);
-                        if (sum != 0)
-                            kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(x.Value / sum, 3));
+
                         double correct = 0;
+                        Dictionary<string, double> resultDict = new Dictionary<string, double>();
+
+
+                        kDict = kDict.ToDictionary(x => x.Key, x => 1 / x.Value);
+
+                        var sum = kDict.Sum(x => x.Value);
+
+                        kDict = kDict.ToDictionary(x => x.Key, x => x.Value / sum);
+
 
                         foreach (var element in kDict)
                         {
-                            if (train[element.Key].font == testFontValue)
-                            {
-                                correct += 1;//element.Value;
-                            }
+                            var currentFont = train[element.Key].font;
+                            var currentValue = element.Value;
+
+                            if (resultDict.ContainsKey(currentFont))
+                                resultDict[currentFont] += currentValue;
+                            else
+                                resultDict.Add(currentFont, currentValue);
                         }
-                        correct = Math.Round(correct / k, 3); 
+
+                        var first = resultDict.OrderByDescending(e => e.Value).First();
+
+                        if (first.Key == testFontValue)
+                        {
+                            correct = 1; //element.Value;
+                        }
+
+                        //var sum = kDict.Sum(x => x.Value);
+                        ////Console.WriteLine(testFontValue);
+                        ////Console.WriteLine(sum);
+                        //kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(Math.Abs(x.Value - sum), 3) );
+                        //sum = kDict.Sum(x => x.Value);
+                        ////Console.WriteLine(sum);3
+                        //if (sum != 0)
+                        //    kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(x.Value / sum, 3));
+                        //double correct = 0;
+
+                        //foreach (var element in kDict)
+                        //{
+                        //    if (train[element.Key].font == testFontValue)
+                        //    {
+                        //        correct += 1;//element.Value;
+                        //    }
+                        //}
+                        //correct = Math.Round(correct / k, 3); 
                         //Console.WriteLine(correct);
 
                         //if (train[kDict.FirstOrDefault(x => x.Value == kDict.Values.Max()).Key].font == testFontValue)
                         //    correct = 1;
 
                         finalK.Add(correct);
+                        correct = 0;
+                        resultDict.Clear();
+                        kDict.Clear();
                     }
                     //Console.ReadLine();
-                    finalResult.Add(finalK);
+                    finalResult.Add(new List<double>(finalK));
+                    finalK.Clear();
                 }
             }
 
@@ -328,11 +362,11 @@ namespace kNN
 
             for (int i = 0; i < totalSum.Count(); i++)
             {
-                totalSum[i] = totalSum[i] / finalResult.Count();
-                //Console.Write(i + 1 + ": " + element[i] + " | ");
+                totalSum[i] = totalSum[i] / totalSum.Count();
+                Console.Write(i + 1 + ": \t" + totalSum[i] + "\n");
             }
             MakeAGraph(totalSum);
-            //Console.ReadLine();
+            Console.ReadLine();
         }
 
         private static void MakeAGraph(double[] listElements)
@@ -371,7 +405,7 @@ namespace kNN
             chart.Invalidate();
 
             // write out a file
-            chart.SaveImage(@"D:\Faks\Diplomski\Rad\chart.png", ChartImageFormat.Png);
+            chart.SaveImage(@"D:\Faks\Diplomski\Rad\kFold_test.png", ChartImageFormat.Png);
         }
 
         public static List<List<kNNEntity>> SplitList(List<kNNEntity> locations, int nSize = 10)
