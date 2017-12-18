@@ -67,18 +67,18 @@ namespace kNN
 
             
             // FOR OPTIMAL k
-            var testList = kNNGroups["k"];
-            testList.Shuffle();
+            //var testList = kNNGroups["k"];
+            //testList.Shuffle();
 
             // List of Lists
-            var split = SplitList(testList, 10);
+            //var split = SplitList(testList, 10);
 
-            FindOptimalK(split);
+            //FindOptimalK(split);
             
 
             //ProcessImg(imageTest);
 
-            //ProcessTest(testFolder);
+            ProcessTest(testFolder);
 
             /*
             foreach (var glyph in glyphs)
@@ -89,7 +89,7 @@ namespace kNN
                 }
             }
             */
-            //Console.ReadLine();
+            Console.ReadLine();
         }
 
         private static void ProcessTest(string testFolder)
@@ -138,38 +138,39 @@ namespace kNN
 
             // kDict predstavlja rječnik sa indexom vrijednosti koja se koristi kasnije za pronalaženje imena fonta
             // i udaljenosti dobivene iz kNN algoritma
-            var sum = kDict.OrderBy(x => x.Value).Take(k).Sum(x => x.Value);
+            //var sum = kDict.OrderBy(x => x.Value).Take(k).Sum(x => x.Value);
             //kDict.Sum(x => x.Value);
 
             //Console.WriteLine(testFontValue);
             //Console.WriteLine(sum);
-            kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(Math.Abs(x.Value - sum), 3));
-            sum = kDict.OrderBy(x => x.Value).Take(k).Sum(x => x.Value);
+            //kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(Math.Abs(x.Value - sum), 3));
+            //sum = kDict.OrderBy(x => x.Value).Take(k).Sum(x => x.Value);
             //Console.WriteLine(sum);
-            if (sum != 0)
-                kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(x.Value / sum, 3));
+            //if (sum != 0)
+            //    kDict = kDict.ToDictionary(x => x.Key, x => Math.Round(x.Value / sum, 3));
 
-            Dictionary<string, double> resultDict = new Dictionary<string, double>();
+
+            //Dictionary<string, double> resultDict = new Dictionary<string, double>();
 
             foreach (var element in kDict)
             {
                 var currentFont = trainList[element.Key].font;
                 var currentValue = element.Value;
 
-                if (resultDict.ContainsKey(currentFont))
-                    resultDict[currentFont] += currentValue;
+                if (UltimateResult.ContainsKey(currentFont))
+                    UltimateResult[currentFont] += 1; //resultDict[currentFont] += currentValue;
                 else
-                    resultDict.Add(currentFont, currentValue); 
+                    UltimateResult.Add(currentFont, 1); //resultDict.Add(currentFont, currentValue); 
             }
 
-            foreach (var result in resultDict)
-            {
-                if (!UltimateResult.ContainsKey(result.Key))
-                    UltimateResult.Add(result.Key, result.Value);
-                else
-                    UltimateResult[result.Key] += result.Value;
-                //Console.WriteLine(result.Key + ": " + result.Value);
-            }
+            //foreach (var result in resultDict)
+            //{
+            //    if (!UltimateResult.ContainsKey(result.Key))
+            //        UltimateResult.Add(result.Key, result.Value);
+            //    else
+            //        UltimateResult[result.Key] += result.Value;
+            //    //Console.WriteLine(result.Key + ": " + result.Value);
+            //}
 
             //Console.WriteLine("");
             //Console.ReadLine();
@@ -227,10 +228,10 @@ namespace kNN
 
             foreach (var res in UltimateResult.OrderByDescending(key => key.Value))
             {
-                Console.WriteLine(res.Key + ": " + Math.Round(res.Value / CharLocations.Count(), 3) * 100); //  
+                //Console.WriteLine(res.Key + ": " + Math.Round(res.Value / CharLocations.Count(), 3) * 100); //
+                Console.WriteLine(res.Key + ": " + Math.Round(res.Value / (k * charCount), 3) * 100);
             }
-
-            UltimateResult.Clear();
+                UltimateResult.Clear();
         }
 
         private static void FindOptimalK(List<List<kNNEntity>> split)
